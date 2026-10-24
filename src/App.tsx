@@ -1,7 +1,7 @@
 import { Editor } from "@monaco-editor/react";
 import NavBar from "./components/nav-bar";
 import Footer from "./components/footer";
-import init, { Compiler } from "./compiler";
+import init, { Compiler } from "./assets/compiler/was_compiler";
 import { useEffect, useRef, useState } from "react";
 import { useDebouncedCallback } from "@tanstack/react-pacer";
 
