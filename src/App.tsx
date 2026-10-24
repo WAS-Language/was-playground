@@ -1,0 +1,146 @@
+import { Editor } from "@monaco-editor/react";
+import NavBar from "./components/nav-bar";
+import Footer from "./components/footer";
+import init, { Compiler } from "./compiler";
+import { useEffect, useRef, useState } from "react";
+import { useDebouncedCallback } from "@tanstack/react-pacer";
+
+export default function App() {
+  const [sourceCode, setSourceCode] = useState<string | undefined>();
+  const [watCode, setWatCode] = useState("");
+  const [wasmBytes, setWasmBytes] = useState<Uint8Array<ArrayBuffer> | null>(null);
+  const [compilationTimeMs, setCompilationTimeMs] = useState<number | null>(null);
+  const [executionTimeMs, setExecutionTimeMs] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRunning, setIsRunning] = useState(false);
+  const [output, setOutput] = useState("");
+  const [error, setError] = useState("");
+  const execution = useRef<Worker | null>(null);
+
+  function compileSource(source: string) {
+    const start = performance.now();
+    const compiler = new Compiler();
+    try {
+      const wat = compiler.compileWat(source);
+      const bytes = compiler.compile(source).slice();
+      setWatCode(wat);
+      setWasmBytes(bytes);
+      setError("");
+      return bytes;
+    } catch (error) {
+      setWatCode("");
+      setWasmBytes(null);
+      setError(error instanceof Error ? error.message : String(error));
+      return null;
+    } finally {
+      compiler.free();
+      setCompilationTimeMs(performance.now() - start);
+    }
+  }
+
+  const compile = useDebouncedCallback(compileSource, { wait: 500 });
+
+  function stopExecution() {
+    if (execution.current) {
+      execution.current.terminate();
+      execution.current = null;
+    }
+  }
+
+  function run() {
+    if (isRunning || !sourceCode?.trim()) return;
+
+
+    setOutput("");
+    setExecutionTimeMs(null);
+    const bytes = compileSource(sourceCode);
+    if (!bytes) return;
+
+    setIsRunning(true);
+    try {
+      const worker = new Worker(new URL("./lib/wasm-worker.ts", import.meta.url), {
+        type: "module",
+      });
+      const finish = (message: { output?: string; error?: string; executionTimeMs?: number | null }) => {
+        stopExecution();
+        setIsRunning(false);
+        setOutput(message.output ?? "");
+        setError(message.error ?? "");
+        setExecutionTimeMs(message.executionTimeMs ?? null);
+      };
+      execution.current = worker;
+      worker.onmessage = (event: MessageEvent<{ output?: string; error?: string; executionTimeMs?: number | null }>) => {
+        finish(event.data);
+      };
+      worker.onerror = (event) => {
+        event.preventDefault();
+        finish({ error: event.message || "Failed to execute the WASM program." });
+      };
+      worker.postMessage(bytes);
+    } catch (error) {
+      stopExecution();
+      setIsRunning(false);
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+    init().then(() => {
+      if (active) setIsLoading(false);
+    }).catch((error: unknown) => {
+      if (active) {
+        setError(error instanceof Error ? error.message : String(error));
+        setIsLoading(false);
+      }
+    });
+    return () => {
+      active = false;
+      stopExecution();
+    };
+  }, []);
+
+  if (isLoading) {
+    return <span>Loading...</span>;
+  }
+
+  return (
+    <main className="flex flex-col h-screen">
+      <NavBar
+        className="flex-none"
+        onRun={run}
+        isRunning={isRunning}
+        canRun={!!sourceCode?.trim()}
+      />
+      <div className="flex flex-row gap-2 justify-between flex-1 min-h-0">
+        <div className="flex-1">
+          <Editor
+            value={sourceCode}
+            onChange={(value) => {
+              setSourceCode(value);
+              compile(value ?? "");
+            }}
+          />
+        </div>
+        <div className="flex-1">
+          <Editor theme="vs-dark" value={watCode} />
+        </div>
+      </div>
+      <section className="flex-none bg-base-200 p-4" aria-label="Program output">
+        <h2 className="text-sm font-semibold">Output</h2>
+        {error ? (
+          <pre role="alert" className="text-error whitespace-pre-wrap">{error}</pre>
+        ) : (
+          <pre role="status" className="whitespace-pre-wrap">
+            {isRunning ? "Running..." : output || "Click Run to execute main()."}
+          </pre>
+        )}
+      </section>
+      <Footer
+              compilationTimeMs={compilationTimeMs ?? 0}
+              executionTimeMs={executionTimeMs ?? 0}
+              sizeBytes={wasmBytes?.byteLength ?? 0}
+            />
+    </main>
+  );
+}
