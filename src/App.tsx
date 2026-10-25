@@ -1,9 +1,10 @@
-import { Editor } from "@monaco-editor/react";
+import Editor from "./components/editor";
 import NavBar from "./components/nav-bar";
 import Footer from "./components/footer";
 import init, { Compiler } from "./assets/compiler/was_compiler";
 import { useEffect, useRef, useState } from "react";
 import { useDebouncedCallback } from "@tanstack/react-pacer";
+import Loading from "./components/loading";
 
 export default function App() {
   const [sourceCode, setSourceCode] = useState<string | undefined>();
@@ -23,6 +24,7 @@ export default function App() {
     try {
       const wat = compiler.compileWat(source);
       const bytes = compiler.compile(source).slice();
+
       setWatCode(wat);
       setWasmBytes(bytes);
       setError("");
@@ -31,6 +33,7 @@ export default function App() {
       setWatCode("");
       setWasmBytes(null);
       setError(error instanceof Error ? error.message : String(error));
+
       return null;
     } finally {
       compiler.free();
@@ -49,7 +52,6 @@ export default function App() {
 
   function run() {
     if (isRunning || !sourceCode?.trim()) return;
-
 
     setOutput("");
     setExecutionTimeMs(null);
@@ -87,7 +89,9 @@ export default function App() {
   useEffect(() => {
     let active = true;
     init().then(() => {
-      if (active) setIsLoading(false);
+      if (active) {
+        setIsLoading(false);
+      }
     }).catch((error: unknown) => {
       if (active) {
         setError(error instanceof Error ? error.message : String(error));
@@ -101,7 +105,7 @@ export default function App() {
   }, []);
 
   if (isLoading) {
-    return <span>Loading...</span>;
+    return <Loading />;
   }
 
   return (
@@ -113,18 +117,15 @@ export default function App() {
         canRun={!!sourceCode?.trim()}
       />
       <div className="flex flex-row gap-2 justify-between flex-1 min-h-0">
-        <div className="flex-1">
           <Editor
-            value={sourceCode}
+            className="flex-1"
+            sourceCode={sourceCode}
             onChange={(value) => {
               setSourceCode(value);
               compile(value ?? "");
             }}
           />
-        </div>
-        <div className="flex-1">
-          <Editor theme="vs-dark" value={watCode} />
-        </div>
+          <Editor sourceCode={watCode} className="flex-1" />
       </div>
       <section className="flex-none bg-base-200 p-4" aria-label="Program output">
         <h2 className="text-sm font-semibold">Output</h2>
