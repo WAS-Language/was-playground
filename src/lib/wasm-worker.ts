@@ -1,10 +1,12 @@
 self.onmessage = async (event: MessageEvent<Uint8Array<ArrayBuffer>>) => {
   let start: number | null = null;
+
   try {
     const { instance } = await WebAssembly.instantiate(event.data, {});
-    const main = instance.exports.main;
+    const { main } = instance.exports;
+
     if (typeof main !== "function") {
-      throw new Error('The program must export a "main" function.');
+      throw new TypeError('The program must export a "main" function.');
     }
 
     start = performance.now();
@@ -16,8 +18,8 @@ self.onmessage = async (event: MessageEvent<Uint8Array<ArrayBuffer>>) => {
     });
   } catch (error) {
     self.postMessage({
-      executionTimeMs: start === null ? null : performance.now() - start,
       error: error instanceof Error ? error.message : String(error),
+      executionTimeMs: start === null ? null : performance.now() - start,
     });
   }
 };

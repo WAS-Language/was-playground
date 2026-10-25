@@ -1,7 +1,8 @@
 import { Editor as MonacoEditor } from "@monaco-editor/react";
 import { editor } from "monaco-editor";
-import { wasTheme } from "./theme";
+
 import { EditorLoading } from "../loading";
+import { wasTheme } from "./theme";
 
 interface EditorProps {
   sourceCode?: string;
@@ -9,7 +10,11 @@ interface EditorProps {
   className?: string;
 }
 
-export default function Editor({ sourceCode, onChange, className }: EditorProps) {
+export default function Editor({
+  sourceCode,
+  onChange,
+  className,
+}: EditorProps) {
   editor.defineTheme("was", wasTheme);
 
   return (
@@ -20,5 +25,5 @@ export default function Editor({ sourceCode, onChange, className }: EditorProps)
       loading={<EditorLoading />}
       theme="was"
     />
-  )
+  );
 }

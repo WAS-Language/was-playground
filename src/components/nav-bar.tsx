@@ -8,7 +8,12 @@ interface NavBarProps {
   canRun: boolean;
 }
 
-export default function NavBar({ className, onRun, isRunning, canRun }: NavBarProps) {
+export default function NavBar({
+  className,
+  onRun,
+  isRunning,
+  canRun,
+}: NavBarProps) {
   return (
     <div className={cn("navbar shadow-sm", className)}>
       <div className="flex-1">
