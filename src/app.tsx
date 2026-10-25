@@ -1,11 +1,24 @@
 import { useDebouncedCallback } from "@tanstack/react-pacer";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import init, { Compiler } from "./assets/compiler/was_compiler";
 import Editor from "./components/editor";
 import Footer from "./components/footer";
 import Loading from "./components/loading";
 import NavBar from "./components/nav-bar";
+
+const compileProgram = (source: string) => {
+  const compiler = new Compiler();
+
+  try {
+    return {
+      bytes: new Uint8Array(compiler.compile(source)),
+      wat: compiler.compileWat(source),
+    };
+  } finally {
+    compiler.free();
+  }
+};
 
 export default function App() {
   const [sourceCode, setSourceCode] = useState<string | undefined>();
@@ -23,44 +36,42 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
   const [output, setOutput] = useState("");
-  const [error, setError] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const execution = useRef<Worker | null>(null);
 
-  function compileSource(source: string) {
+  const compileSource = (source: string) => {
     const start = performance.now();
-    const compiler = new Compiler();
+    let compiledBytes: Uint8Array<ArrayBuffer> | null = null;
 
     try {
-      const wat = compiler.compileWat(source);
-      const bytes = [...compiler.compile(source)];
+      const { wat, bytes } = compileProgram(source);
 
       setWatCode(wat);
       setWasmBytes(bytes);
-      setError("");
+      setErrorMessage("");
 
-      return bytes;
+      compiledBytes = bytes;
     } catch (error) {
       setWatCode("");
       setWasmBytes(null);
-      setError(error instanceof Error ? error.message : String(error));
-
-      return null;
-    } finally {
-      compiler.free();
-      setCompilationTimeMs(performance.now() - start);
+      setErrorMessage(error instanceof Error ? error.message : String(error));
     }
-  }
+
+    setCompilationTimeMs(performance.now() - start);
+
+    return compiledBytes;
+  };
 
   const compile = useDebouncedCallback(compileSource, { wait: 500 });
 
-  function stopExecution() {
+  const stopExecution = useCallback(() => {
     if (execution.current) {
       execution.current.terminate();
       execution.current = null;
     }
-  }
+  }, []);
 
-  function run() {
+  const run = () => {
     if (isRunning || !sourceCode?.trim()) {
       return;
     }
@@ -91,56 +102,70 @@ export default function App() {
         stopExecution();
         setIsRunning(false);
         setOutput(message.output ?? "");
-        setError(message.error ?? "");
+        setErrorMessage(message.error ?? "");
         setExecutionTimeMs(message.executionTimeMs ?? null);
       };
 
       execution.current = worker;
-      worker.onmessage = (
-        event: MessageEvent<{
-          output?: string;
-          error?: string;
-          executionTimeMs?: number | null;
-        }>
-      ) => {
-        finish(event.data);
-      };
+      // stopExecution terminates this worker on completion and effect cleanup.
+      // oxlint-disable-next-line react-doctor/effect-needs-cleanup
+      worker.addEventListener(
+        "message",
+        (
+          event: MessageEvent<{
+            output?: string;
+            error?: string;
+            executionTimeMs?: number | null;
+          }>
+        ) => {
+          finish(event.data);
+        }
+      );
 
-      worker.onerror = (event) => {
+      worker.addEventListener("error", (event) => {
         event.preventDefault();
         finish({
           error: event.message || "Failed to execute the WASM program.",
         });
-      };
+      });
 
+      // Worker messaging has no targetOrigin parameter.
+      // oxlint-disable-next-line unicorn/require-post-message-target-origin
       worker.postMessage(bytes);
     } catch (error) {
       stopExecution();
       setIsRunning(false);
-      setError(error instanceof Error ? error.message : String(error));
+      setErrorMessage(error instanceof Error ? error.message : String(error));
     }
-  }
+  };
 
   useEffect(() => {
     let active = true;
-    init()
-      .then(() => {
+
+    const initialize = async () => {
+      try {
+        await init();
+
         if (active) {
           setIsLoading(false);
         }
-      })
-      .catch((error: unknown) => {
+      } catch (error) {
         if (active) {
-          setError(error instanceof Error ? error.message : String(error));
+          setErrorMessage(
+            error instanceof Error ? error.message : String(error)
+          );
           setIsLoading(false);
         }
-      });
+      }
+    };
+
+    initialize();
 
     return () => {
       active = false;
       stopExecution();
     };
-  }, []);
+  }, [stopExecution]);
 
   if (isLoading) {
     return <Loading />;
@@ -170,16 +195,16 @@ export default function App() {
         aria-label="Program output"
       >
         <h2 className="text-sm font-semibold">Output</h2>
-        {error ? (
+        {errorMessage ? (
           <pre role="alert" className="text-error whitespace-pre-wrap">
-            {error}
+            {errorMessage}
           </pre>
         ) : (
-          <pre role="status" className="whitespace-pre-wrap">
+          <output className="block whitespace-pre-wrap">
             {isRunning
               ? "Running..."
               : output || "Click Run to execute main()."}
-          </pre>
+          </output>
         )}
       </section>
       <Footer

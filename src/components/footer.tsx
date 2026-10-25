@@ -6,7 +6,7 @@ interface FooterProps {
   sizeBytes: number;
 }
 
-export default function Footer({
+function Footer({
   compilationTimeMs,
   executionTimeMs,
   sizeBytes,
@@ -22,3 +22,5 @@ export default function Footer({
     </footer>
   );
 }
+
+export default Footer;

@@ -1,6 +1,14 @@
 import { cn } from "cn";
 
-export default function Loading() {
+interface EditorLoadingProps {
+  className?: string;
+}
+
+export function EditorLoading({ className }: EditorLoadingProps) {
+  return <div className={cn("skeleton flex-1", className)} />;
+}
+
+function Loading() {
   return (
     <div className="flex h-screen flex-col">
       <div className="skeleton h-16 w-full" />
@@ -13,10 +21,4 @@ export default function Loading() {
   );
 }
 
-interface EditorLoadingProps {
-  className?: string;
-}
-
-export function EditorLoading({ className }: EditorLoadingProps) {
-  return <div className={cn("skeleton flex-1", className)} />;
-}
+export default Loading;

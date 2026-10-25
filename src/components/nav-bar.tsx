@@ -8,12 +8,7 @@ interface NavBarProps {
   canRun: boolean;
 }
 
-export default function NavBar({
-  className,
-  onRun,
-  isRunning,
-  canRun,
-}: NavBarProps) {
+function NavBar({ className, onRun, isRunning, canRun }: NavBarProps) {
   return (
     <div className={cn("navbar shadow-sm", className)}>
       <div className="flex-1">
@@ -21,6 +16,7 @@ export default function NavBar({
       </div>
       <div className="flex-none">
         <button
+          type="button"
           className="btn btn-primary"
           onClick={onRun}
           disabled={!canRun || isRunning}
@@ -32,3 +28,5 @@ export default function NavBar({
     </div>
   );
 }
+
+export default NavBar;

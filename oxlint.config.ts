@@ -10,10 +10,18 @@ const jsPlugins = selectJsPlugins(["react-doctor"]);
 export default defineConfig({
   env: core.env,
   extends: [core, react, vitest, antiSlop, jsPlugins],
-  ignorePatterns: core.ignorePatterns,
+  ignorePatterns: [...(core.ignorePatterns ?? []), "src/assets/compiler/**"],
   jsPlugins: jsPlugins.jsPlugins,
   plugins: ["react", "typescript", "oxc"],
   rules: {
+    "eslint/func-style": "off",
+    "react/function-component-definition": [
+      "error",
+      {
+        namedComponents: "function-declaration",
+        unnamedComponents: "function-expression",
+      },
+    ],
     "react/only-export-components": [
       "warn",
       {

@@ -1,8 +1,9 @@
-import { Editor as MonacoEditor } from "@monaco-editor/react";
-import { editor } from "monaco-editor";
+import { lazy, Suspense } from "react";
 
 import { EditorLoading } from "../loading";
 import { wasTheme } from "./theme";
+
+const MonacoEditor = lazy(() => import("@monaco-editor/react"));
 
 interface EditorProps {
   sourceCode?: string;
@@ -10,20 +11,19 @@ interface EditorProps {
   className?: string;
 }
 
-export default function Editor({
-  sourceCode,
-  onChange,
-  className,
-}: EditorProps) {
-  editor.defineTheme("was", wasTheme);
-
+function Editor({ sourceCode, onChange, className }: EditorProps) {
   return (
-    <MonacoEditor
-      className={className}
-      value={sourceCode}
-      onChange={onChange}
-      loading={<EditorLoading />}
-      theme="was"
-    />
+    <Suspense fallback={<EditorLoading />}>
+      <MonacoEditor
+        beforeMount={(monaco) => monaco.editor.defineTheme("was", wasTheme)}
+        className={className}
+        value={sourceCode}
+        onChange={onChange}
+        loading={<EditorLoading />}
+        theme="was"
+      />
+    </Suspense>
   );
 }
+
+export default Editor;
