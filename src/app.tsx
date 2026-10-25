@@ -188,7 +188,7 @@ export default function App() {
             compile(value ?? "");
           }}
         />
-        <Editor sourceCode={watCode} className="flex-1" />
+        <Editor sourceCode={watCode} readOnly className="flex-1" />
       </div>
       <section
         className="bg-base-200 flex-none p-4"

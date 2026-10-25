@@ -14,10 +14,9 @@ function Footer({
   const prettySizeBytes = prettyBytes(sizeBytes);
 
   return (
-    <footer className="footer bg-base-300 flex flex-row p-4 text-sm uppercase">
+    <footer className="footer bg-base-300 text-base-content/50 flex flex-row p-4 font-mono text-xs uppercase">
       <aside>Compilation time: {compilationTimeMs}ms</aside>
       <aside>Execution time: {executionTimeMs}ms</aside>
-      <aside>Target: WASM</aside>
       <aside>Size: {prettySizeBytes}</aside>
     </footer>
   );
