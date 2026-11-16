@@ -1,3 +1,4 @@
+/* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const __wbg_compiler_free: (a: number, b: number) => void;
