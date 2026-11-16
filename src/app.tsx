@@ -139,6 +139,11 @@ export default function App() {
     }
   };
 
+  const updateCode = (value: string | undefined) => {
+    setSourceCode(value);
+    compile(value ?? "");
+  };
+
   useEffect(() => {
     let active = true;
 
@@ -178,15 +183,13 @@ export default function App() {
         onRun={run}
         isRunning={isRunning}
         canRun={!!sourceCode?.trim()}
+        onExampleSelected={updateCode}
       />
       <div className="flex min-h-0 flex-1 flex-row justify-between gap-2">
         <Editor
           className="flex-1"
           sourceCode={sourceCode}
-          onChange={(value) => {
-            setSourceCode(value);
-            compile(value ?? "");
-          }}
+          onChange={updateCode}
         />
         <Editor sourceCode={watCode} readOnly className="flex-1" />
       </div>
