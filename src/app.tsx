@@ -1,68 +1,30 @@
-import { useDebouncedCallback } from "@tanstack/react-pacer";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import init, { Compiler } from "./assets/compiler/was_compiler";
+import init from "./assets/compiler/was_compiler";
 import Editor from "./components/editor";
 import Footer from "./components/footer";
 import Loading from "./components/loading";
 import NavBar from "./components/nav-bar";
-
-const compileProgram = (source: string) => {
-  const compiler = new Compiler();
-
-  try {
-    return {
-      bytes: new Uint8Array(compiler.compile(source)),
-      wat: compiler.compileWat(source),
-    };
-  } finally {
-    compiler.free();
-  }
-};
+import { useCompiler } from "./hooks";
 
 export default function App() {
-  const [sourceCode, setSourceCode] = useState<string | undefined>();
-  const [watCode, setWatCode] = useState("");
-
-  const [wasmBytes, setWasmBytes] = useState<Uint8Array<ArrayBuffer> | null>(
-    null
-  );
-
-  const [compilationTimeMs, setCompilationTimeMs] = useState<number | null>(
-    null
-  );
+  const {
+    compilationTimeMs,
+    compileSource,
+    errorMessage,
+    setErrorMessage,
+    sourceCode,
+    updateCode,
+    wasmBytes,
+    watCode,
+  } = useCompiler();
 
   const [executionTimeMs, setExecutionTimeMs] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
   const [output, setOutput] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+
   const execution = useRef<Worker | null>(null);
-
-  const compileSource = (source: string) => {
-    const start = performance.now();
-    let compiledBytes: Uint8Array<ArrayBuffer> | null = null;
-
-    try {
-      const { wat, bytes } = compileProgram(source);
-
-      setWatCode(wat);
-      setWasmBytes(bytes);
-      setErrorMessage("");
-
-      compiledBytes = bytes;
-    } catch (error) {
-      setWatCode("");
-      setWasmBytes(null);
-      setErrorMessage(error instanceof Error ? error.message : String(error));
-    }
-
-    setCompilationTimeMs(performance.now() - start);
-
-    return compiledBytes;
-  };
-
-  const compile = useDebouncedCallback(compileSource, { wait: 500 });
 
   const stopExecution = useCallback(() => {
     if (execution.current) {
@@ -165,7 +127,7 @@ export default function App() {
       active = false;
       stopExecution();
     };
-  }, [stopExecution]);
+  }, [setErrorMessage, stopExecution]);
 
   if (isLoading) {
     return <Loading />;
@@ -178,15 +140,13 @@ export default function App() {
         onRun={run}
         isRunning={isRunning}
         canRun={!!sourceCode?.trim()}
+        onExampleSelected={updateCode}
       />
       <div className="flex min-h-0 flex-1 flex-row justify-between gap-2">
         <Editor
           className="flex-1"
           sourceCode={sourceCode}
-          onChange={(value) => {
-            setSourceCode(value);
-            compile(value ?? "");
-          }}
+          onChange={updateCode}
         />
         <Editor sourceCode={watCode} readOnly className="flex-1" />
       </div>
