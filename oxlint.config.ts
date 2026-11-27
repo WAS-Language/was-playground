@@ -13,6 +13,7 @@ export default defineConfig({
   ignorePatterns: [
     ...(core.ignorePatterns ?? []),
     "src/assets/compiler/**",
+    "src/assets/binaryen/**",
     "*.{md}",
   ],
   jsPlugins: jsPlugins.jsPlugins,

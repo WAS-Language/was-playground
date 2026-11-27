@@ -11,4 +11,5 @@ export default defineConfig({
     tailwindcss(),
     cloudflare({ viteEnvironment: { name: "client" } }),
   ],
+  worker: { format: "es" },
 });

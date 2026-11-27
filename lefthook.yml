@@ -1,6 +1,8 @@
 pre-commit:
   jobs:
     - run: bunx ultracite fix {staged_files}
+      exclude:
+        - src/assets/compiler/**
       glob:
         - "*.js"
         - "*.jsx"
