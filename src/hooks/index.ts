@@ -1,73 +1,153 @@
-import { useDebouncedCallback } from "@tanstack/react-pacer";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Compiler } from "../assets/compiler/was_compiler";
+import type { CompileRequest, WorkerReply } from "../lib/types";
 
-function compileProgram(source: string) {
-  const compiler = new Compiler();
-  compiler.setExports(["main"]);
+const PREVIEW_DELAY_MS = 500;
+const REQUEST_TIMEOUT_MS = 5000;
+const BASIC_LEVEL = 1;
 
-  try {
-    return {
-      bytes: new Uint8Array(compiler.compile(source)),
-      wat: compiler.compileWat(source),
-    };
-  } finally {
-    compiler.free();
-  }
+interface Job {
+  timer?: number;
+  worker?: Worker;
 }
 
 export function useCompiler() {
-  const [sourceCode, setSourceCode] = useState<string | undefined>();
-  const [watCode, setWatCode] = useState("");
+  const [sourceCode, setSourceCode] = useState("");
+  const [level, setLevel] = useState(BASIC_LEVEL);
+  const [useBinaryen, setUseBinaryen] = useState(false);
 
-  const [wasmBytes, setWasmBytes] = useState<Uint8Array<ArrayBuffer> | null>(
-    null
-  );
+  const [artifact, setArtifact] = useState<Extract<
+    WorkerReply,
+    { kind: "compiled" }
+  > | null>(null);
 
-  const [compilationTimeMs, setCompilationTimeMs] = useState<number | null>(
-    null
-  );
+  const [execution, setExecution] = useState<Extract<
+    WorkerReply,
+    { kind: "executed" }
+  > | null>(null);
 
   const [errorMessage, setErrorMessage] = useState("");
+  const [isRunning, setIsRunning] = useState(false);
+  const active = useRef<Job | null>(null);
 
-  const compileSource = (source: string) => {
-    const start = performance.now();
-    let compiledBytes: Uint8Array<ArrayBuffer> | null = null;
+  const cancel = useCallback(() => {
+    const job = active.current;
+    active.current = null;
+    window.clearTimeout(job?.timer);
+    job?.worker?.terminate();
+  }, []);
 
-    try {
-      const { wat, bytes } = compileProgram(source);
+  useEffect(() => cancel, [cancel]);
 
-      setWatCode(wat);
-      setWasmBytes(bytes);
-      setErrorMessage("");
-      compiledBytes = bytes;
-    } catch (error) {
-      setWatCode("");
-      setWasmBytes(null);
-      setErrorMessage(error instanceof Error ? error.message : String(error));
+  function request(snapshot: CompileRequest) {
+    cancel();
+    setArtifact(null);
+    setExecution(null);
+    setErrorMessage("");
+    setIsRunning(snapshot.run);
+
+    if (!snapshot.source.trim()) {
+      return;
     }
 
-    setCompilationTimeMs(performance.now() - start);
+    const job: Job = {};
+    active.current = job;
 
-    return compiledBytes;
-  };
+    function finish(error = "") {
+      if (active.current !== job) {
+        return;
+      }
 
-  const compile = useDebouncedCallback(compileSource, { wait: 500 });
+      cancel();
+      setIsRunning(false);
+      setErrorMessage(error);
+    }
 
-  const updateCode = (value: string | undefined) => {
-    setSourceCode(value);
-    compile(value ?? "");
-  };
+    function start() {
+      if (active.current !== job) {
+        return;
+      }
+
+      try {
+        const worker = new Worker(
+          new URL("../lib/wasm-worker.ts", import.meta.url),
+          { type: "module" }
+        );
+
+        job.worker = worker;
+        job.timer = window.setTimeout(
+          () => finish("Request timed out after 5 seconds."),
+          REQUEST_TIMEOUT_MS
+        );
+        worker.addEventListener(
+          "message",
+          ({ data }: MessageEvent<WorkerReply>) => {
+            if (active.current !== job) {
+              return;
+            }
+
+            if (data.kind === "compiled") {
+              setArtifact(data);
+
+              if (!snapshot.run) {
+                finish();
+              }
+            } else if (data.kind === "executed") {
+              setExecution(data);
+              finish();
+            } else {
+              finish(data.error);
+            }
+          }
+        );
+
+        worker.addEventListener("error", (event) =>
+          finish(event.message || "Compiler worker failed.")
+        );
+        // Worker messaging has no targetOrigin parameter.
+        // oxlint-disable-next-line unicorn/require-post-message-target-origin
+        worker.postMessage(snapshot);
+      } catch (error) {
+        finish(error instanceof Error ? error.message : String(error));
+      }
+    }
+
+    if (snapshot.run) {
+      start();
+    } else {
+      job.timer = window.setTimeout(start, PREVIEW_DELAY_MS);
+    }
+  }
+
+  function updateCode(source = "") {
+    setSourceCode(source);
+    request({ level, run: false, source, useBinaryen });
+  }
+
+  function updateLevel(value: number) {
+    setLevel(value);
+    request({ level: value, run: false, source: sourceCode, useBinaryen });
+  }
+
+  function updateBinaryen(enabled: boolean) {
+    setUseBinaryen(enabled);
+    request({ level, run: false, source: sourceCode, useBinaryen: enabled });
+  }
 
   return {
-    compilationTimeMs,
-    compileSource,
+    compilationTimeMs: artifact?.compilationTimeMs,
     errorMessage,
-    setErrorMessage,
+    executionTimeMs: execution?.executionTimeMs,
+    isRunning,
+    level,
+    output: execution?.output,
+    run: () => request({ level, run: true, source: sourceCode, useBinaryen }),
     sourceCode,
+    updateBinaryen,
     updateCode,
-    wasmBytes,
-    watCode,
+    updateLevel,
+    useBinaryen,
+    wasmBytes: artifact?.bytes ?? null,
+    watCode: artifact?.wat ?? "",
   };
 }

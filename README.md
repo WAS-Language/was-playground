@@ -1,4 +1,23 @@
-# React + TypeScript + Vite
+# WAS Playground
+
+## Optional Binaryen post-processing
+
+The **Binaryen (O1–O3)** checkbox is off by default. When enabled at O1–O3, the worker uses the pinned `binaryen@116.0.0` to run only `optimize-instructions` with MVP + multi-value. The separate guard validates the output before it is displayed, executed, or made available for download. If post-processing fails, no unoptimized fallback is published; uncheck Binaryen to retry. O0 never loads the optional assets.
+
+To refresh the guard, run this from the `was-compiler` root:
+
+```sh
+wasm-pack build crates/browser \
+  --target web \
+  --out-dir ../../target/playground-binaryen-guard \
+  --out-name was_compiler \
+  --mode no-install --no-opt --offline \
+  --features playground-binaryen
+```
+
+Copy `was_compiler.js`, `was_compiler.d.ts`, `was_compiler_bg.wasm`, and `was_compiler_bg.wasm.d.ts` from that output into `src/assets/binaryen/`. Leave the primary package in `src/assets/compiler/` unchanged.
+
+## React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
